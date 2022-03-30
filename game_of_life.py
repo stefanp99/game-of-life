@@ -54,29 +54,38 @@ def init_terrain():  # used to initialize the terrain
                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]])
-    welcome_layout = [[sg.Text('Dimensions(x): '), sg.InputText(key='xDim')],
-                      [sg.Text('Dimensions(y): '), sg.InputText(key='yDim')],
-                      [sg.Text('Number alive: '), sg.InputText(key='aliveNr')],
+    welcome_layout = [[sg.Text('Dimensions(x): '), sg.InputText(key='xDim', tooltip='default: 20')],
+                      [sg.Text('Dimensions(y): '), sg.InputText(key='yDim', tooltip='default: value of x')],
+                      [sg.Text('Number alive: '), sg.InputText(key='aliveNr', tooltip='default: x*y/2')],
                       [sg.Button('Create own game'), sg.Button('Randomize'), sg.Button('Change rules'),
                        sg.Checkbox('With sound', default=True, key='With sound'),
-                       sg.Checkbox('With alive cell number chart', default=True, key='With chart'),
-                       sg.Text('Interval: '),
-                       sg.Slider(range=(50, 2000), default_value=500, size=(20, 15), orientation='horizontal',
+                       sg.Checkbox('With alive cell number chart', default=True, key='With chart')],
+                      [sg.Text('Interval between frames(ms): '),
+                       sg.Slider(range=(25, 2000), default_value=500, size=(20, 15), orientation='horizontal',
                                  key='interval')],
                       [sg.T('')], [sg.Text('Load pattern: '), sg.Input(key='fileNameToLoad'),
                                    sg.FileBrowse(key='Browse', file_types=(("NumPy array file", "*.npy"),))],
                       [sg.T('')], [sg.Text('Load rules: '), sg.Input(key='rulesToLoad'),
                                    sg.FileBrowse(key='Browse rules',
-                                                 file_types=(("NumPy archived array files", "*.npz"),))]]
+                                                 file_types=(("NumPy archived array files", "*.npz"),))],
+                      [sg.Checkbox('Save as video', default=False, key='with_video',
+                                   tooltip='will save the animation as video'),
+                       sg.InputText(key='video_name', default_text='video.mp4')],
+                      [sg.Text('Number of generations to be saved to video: ', tooltip='default: 500'),
+                       sg.InputText(key='frame_number', tooltip='default: 500')]]
     welcome_window = sg.Window('Game Of Life', welcome_layout).Finalize()
     while True:
         event, values = welcome_window.read()
-        global soundOn
+        global soundOn, with_chart, interval, with_video, video_name, frame_number
         soundOn = values['With sound']
-        global with_chart
         with_chart = values['With chart']
-        global interval
         interval = int(values['interval'])
+        with_video = values['with_video']
+        video_name = values['video_name']
+        if not values['frame_number']:
+            frame_number = 500
+        else:
+            frame_number = int(values['frame_number'])
         if not values['xDim']:
             if not values['yDim']:
                 dim = (20, 20)
@@ -249,6 +258,8 @@ def init_terrain():  # used to initialize the terrain
                             values_rules[value] = False
                             survives_array = []
                             born_array = []
+        survives_array.sort()
+        born_array.sort()
 
 
 def get_neigh_nr(x, y, m):  # get the number of neighbors for a specific position in the m matrix
@@ -299,7 +310,7 @@ def update_fig(self):  # used for updating the matplotlib figures
                     nr_alive += 1
         global generation_count
         generation_count += 1
-        text = f'Alive cells: {nr_alive} / {mat.size}      Generation number:{generation_count}\n'
+        text = f'Alive cells: {nr_alive} / {mat.size} | Generation number:{generation_count} | Survives:{survives_array} | Born:{born_array}'
         if with_chart:
             nr_alive_array.append(nr_alive)
             generations_array.append(generation_count)
@@ -318,7 +329,7 @@ def update_fig(self):  # used for updating the matplotlib figures
             for j in range(mat.shape[1]):
                 transition(mat, i, j, neigh[i][j])
                 im.set_array(mat)
-        if soundOn and nr_alive != 0:
+        if soundOn and nr_alive > 0 and not with_video:
             midi()
         return im,
 
@@ -353,6 +364,9 @@ midi_out = pygame.midi.Output(port, 0)
 soundOn = False
 with_chart = False
 interval = 500
+with_video = False
+video_name = 'video.mp4'
+frame_number = 500
 mat = init_terrain()
 if with_chart:
     fig, axes = plt.subplots(nrows=1, ncols=2)
@@ -373,7 +387,10 @@ title = fig.text(0, 0, '')
 nr_alive_array = []
 generations_array = []
 generation_count = 0
-ani = animation.FuncAnimation(fig, update_fig, interval=interval, blit=False)
+if not with_video:
+    ani = animation.FuncAnimation(fig, update_fig, interval=interval, blit=False)
+else:
+    ani = animation.FuncAnimation(fig, update_fig, interval=interval, blit=False, save_count=frame_number-1).save(video_name)
 mng = plt.get_current_fig_manager()
 mng.window.state('zoomed')
 plt.show()
