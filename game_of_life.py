@@ -54,28 +54,62 @@ def init_terrain():  # used to initialize the terrain
                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]])
-    welcome_layout = [[sg.Text('Dimensions(x): '), sg.InputText(key='xDim', tooltip='default: 20')],
-                      [sg.Text('Dimensions(y): '), sg.InputText(key='yDim', tooltip='default: value of x')],
-                      [sg.Text('Number alive: '), sg.InputText(key='aliveNr', tooltip='default: x*y/2')],
+    welcome_layout = [[sg.Text('Dimensions(x): '),
+                       sg.Slider(range=(5, 200), default_value=20, size=(20, 15), orientation='horizontal',
+                                 key='xDim', resolution=5, enable_events=True)],
+                      [sg.Text('Dimensions(y): '),
+                       sg.Slider(range=(5, 200), default_value=20, size=(20, 15), orientation='horizontal',
+                                 key='yDim', resolution=5, enable_events=True)],
+                      [sg.Text('Number alive: '),
+                       sg.InputText(key='aliveNrText', size=(5, 50), enable_events=True, default_text='200'),
+                       sg.Slider(range=(0, 40000), default_value=200, size=(20, 15), orientation='horizontal',
+                                 key='aliveNr', enable_events=True)],
                       [sg.Button('Create own game'), sg.Button('Randomize'), sg.Button('Change rules'),
-                       sg.Checkbox('With sound', default=True, key='With sound'),
+                       sg.Checkbox('With sound', default=False, key='With sound'),
                        sg.Checkbox('With alive cell number chart', default=True, key='With chart')],
                       [sg.Text('Interval between frames(ms): '),
-                       sg.Slider(range=(25, 2000), default_value=500, size=(20, 15), orientation='horizontal',
-                                 key='interval')],
-                      [sg.T('')], [sg.Text('Load pattern: '), sg.Input(key='fileNameToLoad'),
-                                   sg.FileBrowse(key='Browse', file_types=(("NumPy array file", "*.npy"),))],
-                      [sg.T('')], [sg.Text('Load rules: '), sg.Input(key='rulesToLoad'),
-                                   sg.FileBrowse(key='Browse rules',
-                                                 file_types=(("NumPy archived array files", "*.npz"),))],
+                       sg.Slider(range=(20, 2000), default_value=200, size=(20, 15), orientation='horizontal',
+                                 key='interval', resolution=10)],
+                      [sg.Text('Load pattern: '), sg.Input(key='fileNameToLoad'),
+                       sg.FileBrowse(key='Browse', file_types=(("NumPy array file", "*.npy"),))],
+                      [sg.Text('Load rules: '), sg.Input(key='rulesToLoad'),
+                       sg.FileBrowse(key='Browse rules',
+                                     file_types=(("NumPy archived array files", "*.npz"),))],
                       [sg.Checkbox('Save as video', default=False, key='with_video',
                                    tooltip='will save the animation as video'),
                        sg.InputText(key='video_name', default_text='video.mp4')],
-                      [sg.Text('Number of generations to be saved to video: ', tooltip='default: 500'),
-                       sg.InputText(key='frame_number', tooltip='default: 500')]]
+                      [sg.Text('Number of generations to be saved to video: '),
+                       sg.Slider(range=(10, 2000), default_value=500, size=(20, 15), orientation='horizontal',
+                                 key='frame_number', resolution=10)]]
     welcome_window = sg.Window('Game Of Life', welcome_layout).Finalize()
     while True:
         event, values = welcome_window.read()
+        if event == 'xDim' or event == 'yDim':
+            if event == 'xDim':
+                welcome_window['yDim'].Update(value=int(values['xDim']))
+                values['yDim'] = values['xDim']
+            welcome_window['aliveNr'].Update(value=int(values['xDim'] * values['yDim'] / 2))
+            values['aliveNr'] = int(values['xDim'] * values['yDim'] / 2)
+            welcome_window['aliveNrText'].Update(value=values['aliveNr'])
+            values['aliveNrText'] = values['aliveNr']
+        if event == 'aliveNr':
+            if values['aliveNr'] > values['xDim'] * values['yDim']:
+                welcome_window['aliveNr'].Update(value=int(values['xDim'] * values['yDim']))
+                values['aliveNr'] = values['xDim'] * values['yDim']
+            welcome_window['aliveNrText'].Update(value=int(values['aliveNr']))
+            values['aliveNrText'] = values['aliveNr']
+        if event == 'aliveNrText':
+            aliveNrText = values['aliveNrText']
+            try:
+                v = int(aliveNrText)
+                if v <= values['xDim'] * values['yDim']:
+                    welcome_window['aliveNr'].Update(value=v)
+                    values['aliveNr'] = v
+                else:
+                    raise ValueError
+            except ValueError:
+                welcome_window['aliveNr'].Update(value=int(values['xDim'] * values['yDim'] / 2))
+                values['aliveNr'] = int(values['xDim'] * values['yDim'] / 2)
         global soundOn, with_chart, interval, with_video, video_name, frame_number
         soundOn = values['With sound']
         with_chart = values['With chart']
@@ -109,7 +143,10 @@ def init_terrain():  # used to initialize the terrain
             survives_array = data['arr_1'].tolist()
         if event == 'Create own game':
             welcome_window.close()
-            upper_buttons = [sg.Button('Start simulation'), sg.Button('Clear simulation'), sg.Button('Glider'),
+            survives_array.sort()
+            born_array.sort()
+            upper_buttons = [sg.Button('Start simulation', button_color='green'),
+                             sg.Button('Clear simulation', button_color='red'), sg.Button('Glider'),
                              sg.Button('Beacon'), sg.Button('Toad'), sg.Button('Blinker'), sg.Button('Glider Gun'),
                              sg.Button('Sunflower')]
             save_elements = [sg.Text('File name: '), sg.InputText(key='fileName'),
@@ -188,6 +225,8 @@ def init_terrain():  # used to initialize the terrain
                     x = random.randint(0, m.shape[0] - 1)
                     y = random.randint(0, m.shape[1] - 1)
                 m[x, y] = 1
+            survives_array.sort()
+            born_array.sort()
             return m
         if event == 'Change rules':
             nr_list = list(range(0, 9))
@@ -258,8 +297,6 @@ def init_terrain():  # used to initialize the terrain
                             values_rules[value] = False
                             survives_array = []
                             born_array = []
-        survives_array.sort()
-        born_array.sort()
 
 
 def get_neigh_nr(x, y, m):  # get the number of neighbors for a specific position in the m matrix
@@ -310,7 +347,12 @@ def update_fig(self):  # used for updating the matplotlib figures
                     nr_alive += 1
         global generation_count
         generation_count += 1
-        text = f'Alive cells: {nr_alive} / {mat.size} | Generation number:{generation_count} | Survives:{survives_array} | Born:{born_array}'
+        if with_chart:
+            ax2.set_xlabel('generation: ' + str(generation_count))
+            ax2.set_ylabel('alive cells: ' + str(nr_alive))
+            text = f'Survives:{survives_array}\nBorn:{born_array}\n'
+        else:
+            text = f'Survives:{survives_array} | Born:{born_array}'
         if with_chart:
             nr_alive_array.append(nr_alive)
             generations_array.append(generation_count)
@@ -355,6 +397,7 @@ def onClick(self):  # pause on click
     pause ^= True
 
 
+sg.theme('DarkAmber')
 survives_array = [2, 3]
 born_array = [3]
 pause = False
@@ -363,7 +406,7 @@ port = pygame.midi.get_default_output_id()
 midi_out = pygame.midi.Output(port, 0)
 soundOn = False
 with_chart = False
-interval = 500
+interval = 200
 with_video = False
 video_name = 'video.mp4'
 frame_number = 500
@@ -375,8 +418,8 @@ if with_chart:
     ax1.set_ylabel('instrument')
     ax1.set_xlabel('frequency')
     ax2 = axes[1]
-    ax2.set_ylabel('alive cells')
-    ax2.set_xlabel('generation')
+    ax2.set_ylabel('alive cells: ')
+    ax2.set_xlabel('generation: ')
     im = ax1.imshow(mat, animated=True)
 else:
     fig = plt.figure()
@@ -390,7 +433,8 @@ generation_count = 0
 if not with_video:
     ani = animation.FuncAnimation(fig, update_fig, interval=interval, blit=False)
 else:
-    ani = animation.FuncAnimation(fig, update_fig, interval=interval, blit=False, save_count=frame_number-1).save(video_name)
+    ani = animation.FuncAnimation(fig, update_fig, interval=interval, blit=False, save_count=frame_number - 1).save(
+        video_name)
 mng = plt.get_current_fig_manager()
 mng.window.state('zoomed')
 plt.show()
