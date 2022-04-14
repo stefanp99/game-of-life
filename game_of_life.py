@@ -77,10 +77,10 @@ def init_terrain():  # used to initialize the terrain
                                      file_types=(("NumPy archived array files", "*.npz"),))],
                       [sg.Checkbox('Save as video', default=False, key='with_video',
                                    tooltip='will save the animation as video'),
-                       sg.InputText(key='video_name', default_text='video.mp4')],
+                       sg.InputText(key='video_name', default_text='video.mp4', enable_events=True)],
                       [sg.Text('Number of generations to be saved to video: '),
                        sg.Slider(range=(10, 2000), default_value=500, size=(20, 15), orientation='horizontal',
-                                 key='frame_number', resolution=10)]]
+                                 key='frame_number', resolution=10, enable_events=True)]]
     welcome_window = sg.Window('Game Of Life', welcome_layout).Finalize()
     while True:
         event, values = welcome_window.read()
@@ -116,6 +116,10 @@ def init_terrain():  # used to initialize the terrain
         interval = int(values['interval'])
         with_video = values['with_video']
         video_name = values['video_name']
+        if not with_video:
+            if event == 'frame_number' or event == 'video_name':
+                welcome_window['with_video'].Update(value=True)
+                with_video = True
         if not values['frame_number']:
             frame_number = 500
         else:
@@ -352,7 +356,10 @@ def update_fig(self):  # used for updating the matplotlib figures
             ax2.set_ylabel('alive cells: ' + str(nr_alive))
             text = f'Survives:{survives_array}\nBorn:{born_array}\n'
         else:
-            text = f'Survives:{survives_array} | Born:{born_array}'
+            if with_video:
+                text = f'Survives:{survives_array} | Born:{born_array} | Generation:{generation_count} | Alive:{nr_alive}'
+            else:
+                text = f'Survives:{survives_array}\nBorn:{born_array}\n'
         if with_chart:
             nr_alive_array.append(nr_alive)
             generations_array.append(generation_count)
@@ -423,6 +430,8 @@ if with_chart:
     im = ax1.imshow(mat, animated=True)
 else:
     fig = plt.figure()
+    plt.ylabel('instrument')
+    plt.xlabel('frequency')
     im = plt.imshow(mat, animated=True)
 fig.tight_layout()
 title = fig.text(0, 0, '')
@@ -433,7 +442,7 @@ generation_count = 0
 if not with_video:
     ani = animation.FuncAnimation(fig, update_fig, interval=interval, blit=False)
 else:
-    ani = animation.FuncAnimation(fig, update_fig, interval=interval, blit=False, save_count=frame_number - 1).save(
+    ani = animation.FuncAnimation(fig, update_fig, interval=interval, blit=False, save_count=frame_number).save(
         video_name)
 mng = plt.get_current_fig_manager()
 mng.window.state('zoomed')
