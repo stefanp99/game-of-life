@@ -77,7 +77,9 @@ def init_terrain():  # used to initialize the terrain
                                      file_types=(("NumPy archived array files", "*.npz"),))],
                       [sg.Checkbox('Save as video', default=False, key='with_video',
                                    tooltip='will save the animation as video'),
-                       sg.InputText(key='video_name', default_text='video.mp4', enable_events=True)],
+                       sg.InputText(key='video_name', default_text='video', enable_events=True),
+                       sg.Combo(['.mp4', '.mov', '.wmv', '.avi', '.gif', '.webm', '.mkv', '.flv', '.mpg'],
+                                key='extension', default_value='.mp4', enable_events=True)],
                       [sg.Text('Number of generations to be saved to video: '),
                        sg.Slider(range=(10, 2000), default_value=500, size=(20, 15), orientation='horizontal',
                                  key='frame_number', resolution=10, enable_events=True)]]
@@ -115,9 +117,9 @@ def init_terrain():  # used to initialize the terrain
         with_chart = values['With chart']
         interval = int(values['interval'])
         with_video = values['with_video']
-        video_name = values['video_name']
+        video_name = values['video_name'] + values['extension']
         if not with_video:
-            if event == 'frame_number' or event == 'video_name':
+            if event == 'frame_number' or event == 'video_name' or event == 'extension':
                 welcome_window['with_video'].Update(value=True)
                 with_video = True
         if not values['frame_number']:
@@ -349,17 +351,20 @@ def update_fig(self):  # used for updating the matplotlib figures
             for j in range(mat.shape[1]):
                 if mat[i, j] == 1:
                     nr_alive += 1
-        global generation_count
+        global generation_count, ani
         generation_count += 1
         if with_chart:
             ax2.set_xlabel('generation: ' + str(generation_count))
             ax2.set_ylabel('alive cells: ' + str(nr_alive))
-            text = f'Survives:{survives_array}\nBorn:{born_array}\n'
+            if with_video:
+                text = f'Survives:{survives_array}\nBorn:{born_array}\n'
+            else:
+                text = f'Survives:{survives_array}\nBorn:{born_array}\nInterval:{ani.event_source.interval} ms\n'
         else:
             if with_video:
                 text = f'Survives:{survives_array} | Born:{born_array} | Generation:{generation_count} | Alive:{nr_alive}'
             else:
-                text = f'Survives:{survives_array}\nBorn:{born_array}\n'
+                text = f'Survives:{survives_array}\nBorn:{born_array}\nInterval:{ani.event_source.interval} ms\n'
         if with_chart:
             nr_alive_array.append(nr_alive)
             generations_array.append(generation_count)
@@ -404,6 +409,30 @@ def onClick(self):  # pause on click
     pause ^= True
 
 
+def onPress(event):
+    global ani
+    if event.key == '+':
+        if ani.event_source.interval == 0:
+            ani.event_source.start()
+        ani.event_source.interval += 10
+    if event.key == '-':
+        if ani.event_source.interval - 10 <= 0:
+            ani.event_source.interval = 0
+            ani.event_source.stop()
+        else:
+            ani.event_source.interval -= 10
+    if event.key == '*':
+        if ani.event_source.interval == 0:
+            ani.event_source.start()
+        ani.event_source.interval += 100
+    if event.key == '/':
+        if ani.event_source.interval - 100 <= 0:
+            ani.event_source.interval = 0
+            ani.event_source.stop()
+        else:
+            ani.event_source.interval -= 100
+
+
 sg.theme('DarkAmber')
 survives_array = [2, 3]
 born_array = [3]
@@ -421,6 +450,7 @@ mat = init_terrain()
 if with_chart:
     fig, axes = plt.subplots(nrows=1, ncols=2)
     fig.canvas.mpl_connect('button_press_event', onClick)
+    fig.canvas.mpl_connect('key_press_event', onPress)
     ax1 = axes[0]
     ax1.set_ylabel('instrument')
     ax1.set_xlabel('frequency')
@@ -430,6 +460,8 @@ if with_chart:
     im = ax1.imshow(mat, animated=True)
 else:
     fig = plt.figure()
+    fig.canvas.mpl_connect('button_press_event', onClick)
+    fig.canvas.mpl_connect('key_press_event', onPress)
     plt.ylabel('instrument')
     plt.xlabel('frequency')
     im = plt.imshow(mat, animated=True)
