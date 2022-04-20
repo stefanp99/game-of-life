@@ -11,9 +11,10 @@ user32 = ctypes.windll.user32
 screensize = user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
 
 
-def construct_pattern(pattern, m, clicked_buttons, window):  # used for constructing predefined/saved patterns
-    if pattern.shape[0] <= m.shape[0] and pattern.shape[1] <= m.shape[1]:
-        m[0:pattern.shape[0], 0:pattern.shape[1]] = pattern
+def construct_pattern(pattern, clicked_buttons, window):  # used for constructing predefined/saved patterns
+    global mat
+    if pattern.shape[0] <= mat.shape[0] and pattern.shape[1] <= mat.shape[1]:
+        mat[0:pattern.shape[0], 0:pattern.shape[1]] = pattern
         for i in range(pattern.shape[0]):
             for j in range(pattern.shape[1]):
                 if pattern.item((i, j)) == 1:
@@ -24,7 +25,7 @@ def construct_pattern(pattern, m, clicked_buttons, window):  # used for construc
 
 
 def init_terrain():  # used to initialize the terrain
-    global survives_array, born_array
+    global survives_array, born_array, mat, nr_alive, soundOn, with_chart, interval, with_video, video_name, frame_number, extension
     glider = np.matrix([[0, 1, 0], [0, 0, 1], [1, 1, 1]])
     beacon = np.matrix([[1, 1, 0, 0], [1, 0, 0, 0], [0, 0, 0, 1], [0, 0, 1, 1]])
     toad = np.matrix([[0, 0, 0, 0], [0, 1, 1, 1], [1, 1, 1, 0], [0, 0, 0, 0]])
@@ -55,33 +56,33 @@ def init_terrain():  # used to initialize the terrain
                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]])
     welcome_layout = [[sg.Text('Dimensions(x): '),
-                       sg.Slider(range=(5, 200), default_value=20, size=(20, 15), orientation='horizontal',
+                       sg.Slider(range=(5, 200), default_value=mat.shape[0], size=(20, 15), orientation='horizontal',
                                  key='xDim', resolution=5, enable_events=True)],
                       [sg.Text('Dimensions(y): '),
-                       sg.Slider(range=(5, 200), default_value=20, size=(20, 15), orientation='horizontal',
+                       sg.Slider(range=(5, 200), default_value=mat.shape[1], size=(20, 15), orientation='horizontal',
                                  key='yDim', resolution=5, enable_events=True)],
                       [sg.Text('Number alive: '),
-                       sg.InputText(key='aliveNrText', size=(5, 50), enable_events=True, default_text='200'),
-                       sg.Slider(range=(0, 40000), default_value=200, size=(20, 15), orientation='horizontal',
+                       sg.InputText(key='aliveNrText', size=(5, 50), enable_events=True, default_text=str(int((mat.shape[0]*mat.shape[1])/2))),
+                       sg.Slider(range=(0, 40000), default_value=(mat.shape[0]*mat.shape[1])/2, size=(20, 15), orientation='horizontal',
                                  key='aliveNr', enable_events=True)],
                       [sg.Button('Create own game'), sg.Button('Randomize'), sg.Button('Change rules'),
-                       sg.Checkbox('With sound', default=False, key='With sound'),
-                       sg.Checkbox('With alive cell number chart', default=True, key='With chart')],
+                       sg.Checkbox('With sound', default=soundOn, key='With sound'),
+                       sg.Checkbox('With alive cell number chart', default=with_chart, key='With chart')],
                       [sg.Text('Interval between frames(ms): '),
-                       sg.Slider(range=(20, 2000), default_value=200, size=(20, 15), orientation='horizontal',
+                       sg.Slider(range=(20, 2000), default_value=interval, size=(20, 15), orientation='horizontal',
                                  key='interval', resolution=10)],
                       [sg.Text('Load pattern: '), sg.Input(key='fileNameToLoad'),
                        sg.FileBrowse(key='Browse', file_types=(("NumPy array file", "*.npy"),))],
                       [sg.Text('Load rules: '), sg.Input(key='rulesToLoad'),
                        sg.FileBrowse(key='Browse rules',
                                      file_types=(("NumPy archived array files", "*.npz"),))],
-                      [sg.Checkbox('Save as video', default=False, key='with_video',
+                      [sg.Checkbox('Save as video', default=with_video, key='with_video',
                                    tooltip='will save the animation as video'),
-                       sg.InputText(key='video_name', default_text='video', enable_events=True),
+                       sg.InputText(key='video_name', default_text=video_name, enable_events=True),
                        sg.Combo(['.mp4', '.mov', '.wmv', '.avi', '.gif', '.webm', '.mkv', '.flv', '.mpg'],
-                                key='extension', default_value='.mp4', enable_events=True)],
+                                key='extension', default_value=extension, enable_events=True)],
                       [sg.Text('Number of generations to be saved to video: '),
-                       sg.Slider(range=(10, 2000), default_value=500, size=(20, 15), orientation='horizontal',
+                       sg.Slider(range=(10, 2000), default_value=frame_number, size=(20, 15), orientation='horizontal',
                                  key='frame_number', resolution=10, enable_events=True)]]
     welcome_window = sg.Window('Game Of Life', welcome_layout).Finalize()
     while True:
@@ -112,12 +113,12 @@ def init_terrain():  # used to initialize the terrain
             except ValueError:
                 welcome_window['aliveNr'].Update(value=int(values['xDim'] * values['yDim'] / 2))
                 values['aliveNr'] = int(values['xDim'] * values['yDim'] / 2)
-        global soundOn, with_chart, interval, with_video, video_name, frame_number
         soundOn = values['With sound']
         with_chart = values['With chart']
         interval = int(values['interval'])
         with_video = values['with_video']
-        video_name = values['video_name'] + values['extension']
+        video_name = values['video_name']
+        extension = values['extension']
         if not with_video:
             if event == 'frame_number' or event == 'video_name' or event == 'extension':
                 welcome_window['with_video'].Update(value=True)
@@ -136,13 +137,12 @@ def init_terrain():  # used to initialize the terrain
                 dim = int(values['xDim']), int(values['xDim'])
             else:
                 dim = int(values['xDim']), int(values['yDim'])
-        m = np.zeros(dim)
+        if mat.shape != dim:
+            mat = np.zeros(dim)
         if values['aliveNr']:
             nr_alive = int(values['aliveNr'])
         else:
             nr_alive = int(dim[0] * dim[1] / 2)
-        if event == sg.WIN_CLOSED:
-            return m
         if values['rulesToLoad']:
             data = np.load(values['rulesToLoad'])
             born_array = data['arr_0'].tolist()
@@ -161,8 +161,8 @@ def init_terrain():  # used to initialize the terrain
             loaded_matrix = []
             if values['fileNameToLoad']:
                 loaded_matrix = np.load(values['fileNameToLoad'])
-                m = np.array(loaded_matrix)
-                dim = m.shape
+                mat = np.array(loaded_matrix)
+                dim = mat.shape
             for i in range(dim[0]):
                 buttons_horizontal = []
                 for j in range(dim[1]):
@@ -174,13 +174,17 @@ def init_terrain():  # used to initialize the terrain
             window.maximize()
             clicked_buttons = []
             if values['fileNameToLoad']:
-                construct_pattern(loaded_matrix, m, clicked_buttons, window)
+                construct_pattern(loaded_matrix, clicked_buttons, window)
+            if np.count_nonzero(mat) > 0:
+                construct_pattern(mat, clicked_buttons, window)
             while True:
                 event, values = window.read()
                 window.refresh()
-                if event == sg.WIN_CLOSED or event == 'Start simulation':
+                if event == sg.WIN_CLOSED:
+                    raise RuntimeError
+                if event == 'Start simulation':
                     window.close()
-                    return m
+                    return
                 if event == 'Clear simulation':
                     for button in clicked_buttons:
                         window.find_element(str(button)).Update(button_color='purple')
@@ -188,23 +192,23 @@ def init_terrain():  # used to initialize the terrain
                         y = button[button.find('x') + 1:]
                         x = int(x)
                         y = int(y)
-                        m[x, y] = 0
+                        mat[x, y] = 0
                     clicked_buttons = []
                 if event == 'Save':
-                    np.save(values['fileName'], m)
+                    np.save(values['fileName'], mat)
                     sg.popup('Successfully saved file ' + values['fileName'] + '.npy', title='Saved')
                 if event == 'Glider':
-                    construct_pattern(glider, m, clicked_buttons, window)
+                    construct_pattern(glider, clicked_buttons, window)
                 if event == 'Beacon':
-                    construct_pattern(beacon, m, clicked_buttons, window)
+                    construct_pattern(beacon, clicked_buttons, window)
                 if event == 'Toad':
-                    construct_pattern(toad, m, clicked_buttons, window)
+                    construct_pattern(toad, clicked_buttons, window)
                 if event == 'Blinker':
-                    construct_pattern(blinker, m, clicked_buttons, window)
+                    construct_pattern(blinker, clicked_buttons, window)
                 if event == 'Glider Gun':
-                    construct_pattern(glider_gun, m, clicked_buttons, window)
+                    construct_pattern(glider_gun, clicked_buttons, window)
                 if event == 'Sunflower':
-                    construct_pattern(sunflower, m, clicked_buttons, window)
+                    construct_pattern(sunflower, clicked_buttons, window)
                 if event[:3] == 'btn':
                     if event not in clicked_buttons:
                         clicked_buttons.append(event)
@@ -213,7 +217,7 @@ def init_terrain():  # used to initialize the terrain
                         y = event[event.find('x') + 1:]
                         x = int(x)
                         y = int(y)
-                        m[x, y] = 1
+                        mat[x, y] = 1
                     else:
                         clicked_buttons.remove(event)
                         window.find_element(str(event)).Update(button_color='purple')
@@ -221,19 +225,20 @@ def init_terrain():  # used to initialize the terrain
                         y = event[event.find('x') + 1:]
                         x = int(x)
                         y = int(y)
-                        m[x, y] = 0
+                        mat[x, y] = 0
         if event == 'Randomize':
             welcome_window.close()
+            nr_alive = int((mat.shape[0]*mat.shape[1])/2)
             for _ in range(nr_alive):
-                x = random.randint(0, m.shape[0] - 1)
-                y = random.randint(0, m.shape[1] - 1)
-                while m[x, y] == 1:
-                    x = random.randint(0, m.shape[0] - 1)
-                    y = random.randint(0, m.shape[1] - 1)
-                m[x, y] = 1
+                x = random.randint(0, mat.shape[0] - 1)
+                y = random.randint(0, mat.shape[1] - 1)
+                while mat[x, y] == 1:
+                    x = random.randint(0, mat.shape[0] - 1)
+                    y = random.randint(0, mat.shape[1] - 1)
+                mat[x, y] = 1
             survives_array.sort()
             born_array.sort()
-            return m
+            return
         if event == 'Change rules':
             nr_list = list(range(0, 9))
             welcome_window.hide()
@@ -345,6 +350,7 @@ def transition(m, x, y, nr_neigh):  # check if the cell at (x,y) position will s
 
 
 def update_fig(self):  # used for updating the matplotlib figures
+    global nr_alive
     if not pause:
         nr_alive = 0
         for i in range(mat.shape[0]):
@@ -404,6 +410,46 @@ def midi():  # used for sound
                 midi_out.note_on(freqToPlay, 127)
 
 
+def main_loop():
+    global ani, title, im, mat, ax1, ax2, nr_alive_array, generations_array, generation_count, pause, port, midi_out
+    nr_alive_array = []
+    generations_array = []
+    generation_count = 0
+    pause = False
+    pygame.midi.init()
+    port = pygame.midi.get_default_output_id()
+    midi_out = pygame.midi.Output(port, 0)
+    init_terrain()
+    if with_chart:
+        fig, axes = plt.subplots(nrows=1, ncols=2)
+        fig.canvas.mpl_connect('button_press_event', onClick)
+        fig.canvas.mpl_connect('key_press_event', onPress)
+        ax1 = axes[0]
+        ax1.set_ylabel('instrument')
+        ax1.set_xlabel('frequency')
+        ax2 = axes[1]
+        ax2.set_ylabel('alive cells: ')
+        ax2.set_xlabel('generation: ')
+        im = ax1.imshow(mat, animated=True)
+    else:
+        fig = plt.figure()
+        fig.canvas.mpl_connect('button_press_event', onClick)
+        fig.canvas.mpl_connect('key_press_event', onPress)
+        plt.ylabel('instrument')
+        plt.xlabel('frequency')
+        im = plt.imshow(mat, animated=True)
+    fig.tight_layout()
+    title = fig.text(0, 0, '')
+    if not with_video:
+        ani = animation.FuncAnimation(fig, update_fig, interval=interval, blit=False)
+    else:
+        ani = animation.FuncAnimation(fig, update_fig, interval=interval, blit=False, save_count=frame_number).save(
+            video_name + extension)
+    mng = plt.get_current_fig_manager()
+    mng.window.state('zoomed')
+    plt.show()
+
+
 def onClick(self):  # pause on click
     global pause
     pause ^= True
@@ -431,6 +477,9 @@ def onPress(event):
             ani.event_source.stop()
         else:
             ani.event_source.interval -= 100
+    if event.key == 'q':
+        pygame.midi.quit()
+        main_loop()
 
 
 sg.theme('DarkAmber')
@@ -438,44 +487,23 @@ survives_array = [2, 3]
 born_array = [3]
 pause = False
 pygame.midi.init()
-port = pygame.midi.get_default_output_id()
-midi_out = pygame.midi.Output(port, 0)
+port = None
+midi_out = None
 soundOn = False
-with_chart = False
+with_chart = True
 interval = 200
 with_video = False
-video_name = 'video.mp4'
+video_name = 'video'
+extension = '.mp4'
 frame_number = 500
-mat = init_terrain()
-if with_chart:
-    fig, axes = plt.subplots(nrows=1, ncols=2)
-    fig.canvas.mpl_connect('button_press_event', onClick)
-    fig.canvas.mpl_connect('key_press_event', onPress)
-    ax1 = axes[0]
-    ax1.set_ylabel('instrument')
-    ax1.set_xlabel('frequency')
-    ax2 = axes[1]
-    ax2.set_ylabel('alive cells: ')
-    ax2.set_xlabel('generation: ')
-    im = ax1.imshow(mat, animated=True)
-else:
-    fig = plt.figure()
-    fig.canvas.mpl_connect('button_press_event', onClick)
-    fig.canvas.mpl_connect('key_press_event', onPress)
-    plt.ylabel('instrument')
-    plt.xlabel('frequency')
-    im = plt.imshow(mat, animated=True)
-fig.tight_layout()
-title = fig.text(0, 0, '')
-
 nr_alive_array = []
 generations_array = []
 generation_count = 0
-if not with_video:
-    ani = animation.FuncAnimation(fig, update_fig, interval=interval, blit=False)
-else:
-    ani = animation.FuncAnimation(fig, update_fig, interval=interval, blit=False, save_count=frame_number).save(
-        video_name)
-mng = plt.get_current_fig_manager()
-mng.window.state('zoomed')
-plt.show()
+ani = animation.FuncAnimation
+title = str
+im = None
+mat = np.zeros((20, 20))
+nr_alive = 200
+ax1 = None
+ax2 = None
+main_loop()
