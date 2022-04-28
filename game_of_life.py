@@ -1,5 +1,6 @@
 import ctypes
 import random
+import time
 
 import PySimpleGUI as sg  # for GUI
 import matplotlib.animation as animation  # for animations
@@ -25,7 +26,7 @@ def construct_pattern(pattern, clicked_buttons, window):  # used for constructin
 
 
 def init_terrain():  # used to initialize the terrain
-    global survives_array, born_array, mat, nr_alive, soundOn, with_chart, interval, with_video, video_name, frame_number, extension
+    global survives_array, born_array, mat, nr_alive, soundOn, with_chart, interval, with_video, video_name, frame_number, extension, fileNameToLoad, rulesToLoad
     glider = np.matrix([[0, 1, 0], [0, 0, 1], [1, 1, 1]])
     beacon = np.matrix([[1, 1, 0, 0], [1, 0, 0, 0], [0, 0, 0, 1], [0, 0, 1, 1]])
     toad = np.matrix([[0, 0, 0, 0], [0, 1, 1, 1], [1, 1, 1, 0], [0, 0, 0, 0]])
@@ -62,8 +63,10 @@ def init_terrain():  # used to initialize the terrain
                        sg.Slider(range=(5, 200), default_value=mat.shape[1], size=(20, 15), orientation='horizontal',
                                  key='yDim', resolution=5, enable_events=True)],
                       [sg.Text('Number alive: '),
-                       sg.InputText(key='aliveNrText', size=(5, 50), enable_events=True, default_text=str(int((mat.shape[0]*mat.shape[1])/2))),
-                       sg.Slider(range=(0, 40000), default_value=(mat.shape[0]*mat.shape[1])/2, size=(20, 15), orientation='horizontal',
+                       sg.InputText(key='aliveNrText', size=(5, 50), enable_events=True,
+                                    default_text=str(int((mat.shape[0] * mat.shape[1]) / 2))),
+                       sg.Slider(range=(0, 40000), default_value=(mat.shape[0] * mat.shape[1]) / 2, size=(20, 15),
+                                 orientation='horizontal',
                                  key='aliveNr', enable_events=True)],
                       [sg.Button('Create own game'), sg.Button('Randomize'), sg.Button('Change rules'),
                        sg.Checkbox('With sound', default=soundOn, key='With sound'),
@@ -71,16 +74,16 @@ def init_terrain():  # used to initialize the terrain
                       [sg.Text('Interval between frames(ms): '),
                        sg.Slider(range=(20, 2000), default_value=interval, size=(20, 15), orientation='horizontal',
                                  key='interval', resolution=10)],
-                      [sg.Text('Load pattern: '), sg.Input(key='fileNameToLoad'),
+                      [sg.Text('Load pattern: '), sg.Input(key='fileNameToLoad', default_text=fileNameToLoad),
                        sg.FileBrowse(key='Browse', file_types=(("NumPy array file", "*.npy"),))],
-                      [sg.Text('Load rules: '), sg.Input(key='rulesToLoad'),
+                      [sg.Text('Load rules: '), sg.Input(key='rulesToLoad', default_text=rulesToLoad),
                        sg.FileBrowse(key='Browse rules',
                                      file_types=(("NumPy archived array files", "*.npz"),))],
                       [sg.Checkbox('Save as video', default=with_video, key='with_video',
                                    tooltip='will save the animation as video'),
                        sg.InputText(key='video_name', default_text=video_name, enable_events=True),
                        sg.Combo(['.mp4', '.mov', '.wmv', '.avi', '.gif', '.webm', '.mkv', '.flv', '.mpg'],
-                                key='extension', default_value=extension, enable_events=True)],
+                                key='extension', default_value=extension, enable_events=True, readonly=True)],
                       [sg.Text('Number of generations to be saved to video: '),
                        sg.Slider(range=(10, 2000), default_value=frame_number, size=(20, 15), orientation='horizontal',
                                  key='frame_number', resolution=10, enable_events=True)]]
@@ -144,6 +147,7 @@ def init_terrain():  # used to initialize the terrain
         else:
             nr_alive = int(dim[0] * dim[1] / 2)
         if values['rulesToLoad']:
+            rulesToLoad = values['rulesToLoad']
             data = np.load(values['rulesToLoad'])
             born_array = data['arr_0'].tolist()
             survives_array = data['arr_1'].tolist()
@@ -160,6 +164,7 @@ def init_terrain():  # used to initialize the terrain
             column = []
             loaded_matrix = []
             if values['fileNameToLoad']:
+                fileNameToLoad = values['fileNameToLoad']
                 loaded_matrix = np.load(values['fileNameToLoad'])
                 mat = np.array(loaded_matrix)
                 dim = mat.shape
@@ -228,7 +233,7 @@ def init_terrain():  # used to initialize the terrain
                         mat[x, y] = 0
         if event == 'Randomize':
             welcome_window.close()
-            nr_alive = int((mat.shape[0]*mat.shape[1])/2)
+            nr_alive = int((mat.shape[0] * mat.shape[1]) / 2)
             for _ in range(nr_alive):
                 x = random.randint(0, mat.shape[0] - 1)
                 y = random.randint(0, mat.shape[1] - 1)
@@ -245,7 +250,8 @@ def init_terrain():  # used to initialize the terrain
             change_rules_layout = [[sg.Text('Save rules: '), sg.InputText(key='fileName'),
                                     sg.Button('Save')],
                                    [sg.Button('Check all'),
-                                    sg.Button('Uncheck all')],
+                                    sg.Button('Uncheck all'),
+                                   sg.Button('Default')],
                                    [sg.Text('Survives')]]
             survives_row = []
             for i in nr_list:
@@ -308,6 +314,14 @@ def init_terrain():  # used to initialize the terrain
                             values_rules[value] = False
                             survives_array = []
                             born_array = []
+                if event_rules == 'Default':
+                    survives_array = [2, 3]
+                    born_array = [3]
+                    for value in values_rules:
+                        if value in ('surv2', 'surv3', 'born3'):
+                            change_rules_window[value].update(True)
+                        elif value[:4] == 'surv' or value[:4] == 'born':
+                            change_rules_window[value].update(False)
 
 
 def get_neigh_nr(x, y, m):  # get the number of neighbors for a specific position in the m matrix
@@ -350,7 +364,7 @@ def transition(m, x, y, nr_neigh):  # check if the cell at (x,y) position will s
 
 
 def update_fig(self):  # used for updating the matplotlib figures
-    global nr_alive
+    global nr_alive, line
     if not pause:
         nr_alive = 0
         for i in range(mat.shape[0]):
@@ -365,19 +379,27 @@ def update_fig(self):  # used for updating the matplotlib figures
             if with_video:
                 text = f'Survives:{survives_array}\nBorn:{born_array}\n'
             else:
-                text = f'Survives:{survives_array}\nBorn:{born_array}\nInterval:{ani.event_source.interval} ms\n'
+                if not soundOn:
+                    text = f'Survives:{survives_array}\nBorn:{born_array}\nInterval:{ani.event_source.interval} ms\n'
+                else:
+                    text = f'Survives:{survives_array}\nBorn:{born_array}\nInterval:{interval} ms\n'
         else:
             if with_video:
                 text = f'Survives:{survives_array} | Born:{born_array} | Generation:{generation_count} | Alive:{nr_alive}'
             else:
-                text = f'Survives:{survives_array}\nBorn:{born_array}\nInterval:{ani.event_source.interval} ms\n'
+                if not soundOn:
+                    text = f'Survives:{survives_array}\nBorn:{born_array}\nInterval:{ani.event_source.interval} ms\n'
+                else:
+                    text = f'Survives:{survives_array}\nBorn:{born_array}\nInterval:{interval} ms\n'
         if with_chart:
+            if len(ax2.lines) > 0:
+                ax2.lines.remove(line)
             nr_alive_array.append(nr_alive)
             generations_array.append(generation_count)
-            if len(nr_alive_array) == 5:
-                nr_alive_array.pop(0)
-            if len(generations_array) == 5:
-                generations_array.pop(0)
+            average_nr_alive = round(sum(nr_alive_array) / len(nr_alive_array), 2)
+            line = ax2.axhline(average_nr_alive, color='black', ls='--')
+            line.set_label('average alive cells nr: ' + str(average_nr_alive))
+            ax2.legend(loc='upper right')
             ax2.plot(generations_array, nr_alive_array)
         title.set_text(text)
         neigh = np.zeros((mat.shape[0], mat.shape[1]))
@@ -389,15 +411,18 @@ def update_fig(self):  # used for updating the matplotlib figures
             for j in range(mat.shape[1]):
                 transition(mat, i, j, neigh[i][j])
                 im.set_array(mat)
-        if soundOn and nr_alive > 0 and not with_video:
+        if soundOn and nr_alive > 0 and not with_video and generation_count > 1:
             midi()
         return im,
 
 
 def midi():  # used for sound
+    test_i_j = []
     for i in range(mat.shape[0]):
+        played_frequencies = []
         for j in range(mat.shape[1]):
             if mat[i, j] == 1:
+                test_i_j.append((i, j))
                 freqToPlay = int((j + 1) * (128 / mat.shape[1]))
                 if freqToPlay == 128:
                     freqToPlay = 127
@@ -408,6 +433,10 @@ def midi():  # used for sound
                     instrumentToPlay = 127
                 midi_out.set_instrument(instrumentToPlay)
                 midi_out.note_on(freqToPlay, 127)
+                played_frequencies.append(freqToPlay)
+        time.sleep(interval / 1000.0)
+        for freqToPlay in played_frequencies:
+            midi_out.note_off(freqToPlay, 127)
 
 
 def main_loop():
@@ -441,7 +470,10 @@ def main_loop():
     fig.tight_layout()
     title = fig.text(0, 0, '')
     if not with_video:
-        ani = animation.FuncAnimation(fig, update_fig, interval=interval, blit=False)
+        if not soundOn:
+            ani = animation.FuncAnimation(fig, update_fig, interval=interval, blit=False)
+        else:
+            ani = animation.FuncAnimation(fig, update_fig, blit=False)
     else:
         ani = animation.FuncAnimation(fig, update_fig, interval=interval, blit=False, save_count=frame_number).save(
             video_name + extension)
@@ -487,7 +519,7 @@ survives_array = [2, 3]
 born_array = [3]
 pause = False
 pygame.midi.init()
-port = None
+port = 0
 midi_out = None
 soundOn = False
 with_chart = True
@@ -506,4 +538,7 @@ mat = np.zeros((20, 20))
 nr_alive = 200
 ax1 = None
 ax2 = None
+line = None
+fileNameToLoad = ''
+rulesToLoad = ''
 main_loop()
