@@ -374,6 +374,7 @@ def update_fig(self):  # used for updating the matplotlib figures
         global generation_count, ani
         generation_count += 1
         if with_chart:
+            ax2.clear()
             ax2.set_xlabel('generation: ' + str(generation_count))
             ax2.set_ylabel('alive cells: ' + str(nr_alive))
             if with_video:
