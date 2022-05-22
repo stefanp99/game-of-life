@@ -68,7 +68,7 @@ def init_terrain():  # used to initialize the terrain
                        sg.Slider(range=(0, 40000), default_value=(mat.shape[0] * mat.shape[1]) / 2, size=(20, 15),
                                  orientation='horizontal',
                                  key='aliveNr', enable_events=True)],
-                      [sg.Button('Create own game'), sg.Button('Randomize'), sg.Button('Change rules'),
+                      [sg.Button('Create own game'), sg.Button('Randomize'), sg.Button('Rules'),
                        sg.Checkbox('With sound', default=soundOn, key='With sound'),
                        sg.Checkbox('With alive cell number chart', default=with_chart, key='With chart')],
                       [sg.Text('Interval between frames(ms): '),
@@ -244,14 +244,15 @@ def init_terrain():  # used to initialize the terrain
             survives_array.sort()
             born_array.sort()
             return
-        if event == 'Change rules':
+        if event == 'Rules':
             nr_list = list(range(0, 9))
             welcome_window.hide()
             change_rules_layout = [[sg.Text('Save rules: '), sg.InputText(key='fileName'),
                                     sg.Button('Save')],
                                    [sg.Button('Check all'),
                                     sg.Button('Uncheck all'),
-                                   sg.Button('Default')],
+                                    sg.Button('Default'),
+                                    sg.Button('Read rules')],
                                    [sg.Text('Survives')]]
             survives_row = []
             for i in nr_list:
@@ -322,6 +323,24 @@ def init_terrain():  # used to initialize the terrain
                             change_rules_window[value].update(True)
                         elif value[:4] == 'surv' or value[:4] == 'born':
                             change_rules_window[value].update(False)
+                if event_rules == 'Read rules':
+                    for value in values_rules:
+                        if value[:4] == 'surv' and values_rules[value] and int(value[4]) not in survives_array:
+                            survives_array.append(int(value[4]))
+                        elif value[:4] == 'surv' and not values_rules[value] and int(value[4]) in survives_array:
+                            survives_array.remove(int(value[4]))
+                    for value in values_rules:
+                        if value[:4] == 'born' and values_rules[value] and int(value[4]) not in born_array:
+                            born_array.append(int(value[4]))
+                        elif value[:4] == 'born' and not values_rules[value] and int(value[4]) in born_array:
+                            born_array.remove(int(value[4]))
+                    survives_array.sort()
+                    born_array.sort()
+                    sg.Popup(f'1. Any live cell with {str(survives_array)[1:-1]} live neighbours survives.\n'
+                             f'2. Any dead cell with {str(born_array)[1:-1]} live neighbours becomes a live cell.\n'
+                             '3. All other live cells die in the next generation. Similarly, all other dead cells stay dead.\n\n'
+                             'https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life#Rules',
+                             title='Read rules')
 
 
 def get_neigh_nr(x, y, m):  # get the number of neighbors for a specific position in the m matrix
@@ -412,7 +431,7 @@ def update_fig(self):  # used for updating the matplotlib figures
             for j in range(mat.shape[1]):
                 transition(mat, i, j, neigh[i][j])
                 im.set_array(mat)
-        if soundOn and nr_alive > 0 and not with_video and generation_count > 1:
+        if soundOn and nr_alive > 0 and not with_video:
             midi()
         return im,
 
@@ -472,11 +491,11 @@ def main_loop():
     title = fig.text(0, 0, '')
     if not with_video:
         if not soundOn:
-            ani = animation.FuncAnimation(fig, update_fig, interval=interval, blit=False)
+            ani = animation.FuncAnimation(fig, update_fig, interval=interval)
         else:
-            ani = animation.FuncAnimation(fig, update_fig, blit=False)
+            ani = animation.FuncAnimation(fig, update_fig)
     else:
-        ani = animation.FuncAnimation(fig, update_fig, interval=interval, blit=False, save_count=frame_number).save(
+        ani = animation.FuncAnimation(fig, update_fig, interval=interval, save_count=frame_number).save(
             video_name + extension)
     mng = plt.get_current_fig_manager()
     mng.window.state('zoomed')
